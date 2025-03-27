@@ -410,8 +410,7 @@
         //   scatteredImgs.forEach(img => img.classList.remove('blackout'));
         // }, 50);
 
-        const useSkull = Math.random() < 1; // 30% chance. Tweak as you like
-
+        const useSkull = Math.random() < 0.2; 
         if (useSkull) {
           document.body.classList.add('flash-skull');
         } else {
