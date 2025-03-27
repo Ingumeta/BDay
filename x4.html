@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Access Code</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background-color: black;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      flex-direction: column;
+      font-family: sans-serif;
+    }
+
+    /* Laser beams */
+    .laser-beam {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 2px;              /* beam thickness */
+      height: 0;
+      background: rgb(255, 255, 255);
+      opacity: 0.9;
+      transform-origin: center; /* pivot around center */
+      /* filter: drop-shadow(0 0 30px magenta); */
+      z-index: 500;
+      box-shadow: 0 0 20px 5px magenta;
+    }
+
+    .pulse-circle {
+      position: absolute;
+      border: 2px solid rgba(255, 0, 150, 0.5);
+      border-radius: 50%;
+      width: 200px;
+      height: 200px;
+      animation: pulse 1s infinite ease-in-out;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 0.8; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+
+    #reveal-btn {
+      background: none;
+      border: 2px solid magenta;
+      color: magenta;
+      padding: 1em 2em;
+      font-size: 1.2em;
+      cursor: pointer;
+      margin-top: 20px;
+      z-index: 2;
+    }
+
+    #qr-container {
+      display: none;
+      z-index: 600;
+    }
+
+    #qr-code {
+      width: 200px;
+      height: 200px;
+      margin-top: 20px;
+      filter: drop-shadow(0 0 20px magenta);
+      z-index: 600;
+    }
+
+    .floating-img {
+      position: absolute;
+      pointer-events: auto;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      /* filter: drop-shadow(0 0 10px rgb(255, 255, 255)); */
+    }
+
+    .animation-stop {
+      animation: none;
+    }
+
+    .flash {
+      background-color: white !important;
+    }
+
+    .blackout {
+      filter: brightness(0);
+    }
+
+    .color-glitch{
+        filter: hue-rotate(180deg);
+    }
+
+  </style>
+</head>
+<body>
+  <div class="pulse-circle"></div>
+  <button id="reveal-btn">Reveal Access Code</button>
+  <div id="qr-container">
+    <img id="qr-code" src="qr.png" alt="QR Code" />
+  </div>
+
+  <script>
+    // Each entry is a beat offset within the measure.
+    // For example: 0 = start of measure, 1 = second beat, 3.5 = halfway between beats 3 and 4, etc.
+    const kickPattern = [ 0,              1,              2,          3,          
+                          4,              5,              6,          7, 7.25, 7.5,
+                          8,              9,              10,         11, 
+                          12,12.25,12.5,  13,13.25,13.5,  14,         15, 15.5
+                        ];
+
+    const hihatPattern = [           
+                          
+                            8, 8.25, 8.5 ,8.75, 9, 9.25, 9.5, 9.75,  10,           
+                            14, 14.5
+                        ];
+
+    // BPM (beats per minute). Let's say 100 BPM => 60/100 = 0.6 seconds per beat
+    const BPM = 150;
+    const secondsPerBeat = 60 / BPM;
+
+    // If your pattern is 4 beats long (or 5 if you count 4 as the last offset), you can call that one measure:
+    const measureLength = 16; // 4 beats per measure (typical in 4/4)
+
+    let audioContext;
+    let kickBuffer;
+
+    const screech = new Howl({
+        src: ['screech.mp3'],
+        volume: 1
+    })
+
+    const horn = new Howl({
+        src: ['horn.mp3'],
+        volume: 1
+    })
+    const hihat = new Howl({
+        src: ['hihat.mp3'],
+        volume: 1
+    })
+
+    // Pre-load the audio file into an AudioBuffer
+    async function initAudio() {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const response = await fetch('kick_a.mp3');
+      const arrayBuffer = await response.arrayBuffer();
+      kickBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+      const responseH = await fetch('hihat.mp3');
+      const arrayBufferH = await responseH.arrayBuffer();
+      hihatBuffer = await audioContext.decodeAudioData(arrayBufferH);
+    }
+
+    bopDuration = secondsPerBeat/5;
+    function scheduleMeasure(startTime) {
+      // For each beat offset in our pattern:
+      kickPattern.forEach(beatOffset => {
+        // Calculate the absolute time in seconds
+        const time = startTime + (beatOffset * secondsPerBeat);
+
+        // Schedule the audio
+        scheduleKick(time);
+
+        // Schedule the visuals
+        // We can't schedule them at 'time' EXACTLY from code, so we do a setTimeout
+        // offset by (time - audioCtx.currentTime) * 1000 ms
+        setTimeout(() => {
+          triggerFlash();
+        }, (time - audioContext.currentTime) * 1000);
+
+        if(Number.isInteger(beatOffset)){
+          setTimeout(() => {
+            triggerBop();
+          }, (time - audioContext.currentTime - bopDuration) * 1000);
+        }// }, (time - audioContext.currentTime) * 1000);
+      });
+
+      // For each beat offset in our pattern:
+      hihatPattern.forEach(beatOffset => {
+        const time = startTime + (beatOffset * secondsPerBeat);
+        scheduleHiHat(time);
+        setTimeout(() => {
+          triggerLaser();
+        }, (time - audioContext.currentTime) * 1000);
+      });
+    }
+
+    // Actually play the buffer at the specified time
+    function scheduleKick(when) {
+      const source = audioContext.createBufferSource();
+      source.buffer = kickBuffer;
+      source.connect(audioContext.destination);
+      source.start(when);
+    }  
+    
+    function scheduleHiHat(when) {
+      const source = audioContext.createBufferSource();
+      source.buffer = hihatBuffer;
+      source.connect(audioContext.destination);
+      source.start(when);
+    }  
+
+    let nextMeasureStart = 0;
+    let isRunning = false;
+
+    function scheduler() {
+      // Look ahead (in seconds) — how far ahead we schedule
+      const lookAhead = 0.5;
+
+      // While there's room in our scheduling window, schedule the next measure
+      while (nextMeasureStart < audioContext.currentTime + lookAhead) {
+        scheduleMeasure(nextMeasureStart);
+
+        // Move 'nextMeasureStart' forward by 'measureLength' beats
+        // times 'secondsPerBeat'
+        nextMeasureStart += measureLength * secondsPerBeat;
+      }
+
+      if (isRunning) {
+        // Keep scheduling in a loop
+        requestAnimationFrame(scheduler);
+      }
+    }
+
+    function startHorn(){
+      horn.play();
+      const qr = document.getElementById("qr-code");
+      let tl = gsap.timeline();
+      f = 40
+      d = 2
+      r = 4
+      tl.to(qr,{scale:1.3,duration:1,delay: 1.8,yoyo:true,ease:"power1.Out"})
+      tl.to(qr,{rotation:r,duration:1/40,repeat:2.8*f,delay: 0,yoyo:true,ease:"power1.InOut"},"<")
+      tl.to(qr,{scale:"+=0.1",duration:1/40,repeat:2.8*f,delay: 0,yoyo:true,ease:"power1.InOut"},"<")
+      tl.to(qr,{rotation:0,duration:1/40,repeat:0,delay: 0,yoyo:false,ease:"power1.InOut"},">")
+      tl.to(qr,{scale:1,duration:1,delay: 0,yoyo:true,ease:"power1.inOut"},"-=1")
+
+      tl.to(qr,{scale:1.3,duration:0.3,delay: 2,yoyo:true,ease:"power1.Out"},">")
+      tl.to(qr,{rotation:r,duration:1/40,repeat:2.8*f,delay: 0,yoyo:true,ease:"power1.InOut"},"<")
+      tl.to(qr,{rotation:0,duration:1/40,repeat:0,delay: 0,yoyo:false,ease:"power1.InOut"},">")
+      tl.to(qr,{scale:1,duration:0.3,delay: 0,yoyo:true,ease:"power1.inOut"},"-=1")
+
+      tl.to(qr,{scale:1.3,duration:0.3,delay: 2.2,yoyo:true,ease:"power1.Out"},">")
+      tl.to(qr,{rotation:r,duration:1/40,repeat:2.8*f,delay: 0,yoyo:true,ease:"power1.InOut"},"<")
+      tl.to(qr,{rotation:0,duration:1/40,repeat:0,delay: 0,yoyo:false,ease:"power1.InOut"},">")
+      tl.to(qr,{scale:1,duration:0.3,delay: 0,yoyo:true,ease:"power1.inOut"},"-=1")
+      setTimeout(startHorn,(20+Math.random()*10)*1000);
+    }
+
+
+    function vibrateAndRotateImage(img,duration) {
+      f = 10
+      n = duration * f *2
+      gsap.fromTo(
+        img,
+        { x: -5, rotation: -5 },  // start offset and rotation
+        {
+          x: 5,
+          rotation: 5,
+          duration: 1/f/2,
+          yoyo: true,
+          repeat: n,
+          ease: "power1.inOut",
+          onComplete: () => {
+            // Reset transforms
+            gsap.set(img, { x: 0, rotation: 0 });
+          }
+        }
+      );
+    }
+
+    function makeItWobble(img) {
+      f = 3
+      gsap.fromTo(
+        img,
+        { x: -5, rotation: -5 },  // start offset and rotation
+        {
+          x: 5,
+          rotation: 5,
+          duration: secondsPerBeat,
+          yoyo: true,
+          repeat: -1,
+          ease: "power1.inOut",
+        }
+      );
+    }
+
+    const scatteredImgs = [];
+    const imgCount = 100;
+    const imgSrcA = 'maria1.png';
+    const imgSrcB = 'je.png';
+
+    for (let i = 0; i < imgCount; i++) {
+      const img = document.createElement('img');
+      img.src = i<imgCount/6?imgSrcB:imgSrcA;
+      img.classList.add('floating-img');
+
+      const size = Math.random() * 100 + 50;
+      img.style.width = `${size}px`;
+      img.style.height = 'auto';
+      img.style.left = `${Math.random() * 100}%`;
+      img.style.top = `${Math.random() * 100}%`;
+      img.style.transform = `translate(-50%, -50%)`;
+      makeItWobble(img);
+
+
+      img.addEventListener('click', () => {
+        vibrateAndRotateImage(img,15);
+        // 1) Play a sound
+        screech.play();
+        // 2) Temporarily change the image source
+        const oldSrc = img.src;
+        setTimeout(() => {img.src = 'maria2.png';},500); // revert after 200ms, adjust as you like
+        setTimeout(() => {img.src = oldSrc;},7000); // revert after 200ms, adjust as you like
+        setTimeout(() => {img.src = 'maria2.png';},8000); // revert after 200ms, adjust as you like
+        setTimeout(() => {img.src = oldSrc;},15000); // revert after 200ms, adjust as you like
+      });
+
+      document.body.appendChild(img);
+      scatteredImgs.push(img);
+    }
+
+
+    function triggerLaser() {
+      // Create a laser div
+      const laser = document.createElement('div');
+      laser.className = 'laser-beam';
+
+      // Random angle for variety
+      const angle = Math.random() * 360;
+      const x = 10+Math.random() * 80;
+      const y = 10+Math.random() * 80;
+      // Could do random color too if you like:
+      // laser.style.backgroundColor = '#' + ((1<<24)*Math.random()|0).toString(16);
+
+      // Position & rotation
+      laser.style.transform = `translate(-${x}%, -${y}%) rotate(${angle}deg)`;
+
+      // Add to DOM
+      document.body.appendChild(laser);
+
+      // Animate from short to long, then fade out
+      const tl = gsap.timeline({
+        onComplete: () => {
+          // Remove the div after animation
+          document.body.removeChild(laser);
+        }
+      });
+
+      // We'll shoot out to some length, then fade away
+      tl.fromTo(laser, 
+        { height: 0, opacity: 0.9 }, 
+        { height: 500, duration: 0.07, ease: 'power2.out' } // a quick beam up
+      )
+      .to(laser, { opacity: 0, duration: 0.1, ease: 'power2.in' });
+    }
+
+    function triggerFlash() {
+        gsap.fromTo(".pulse-circle", {scale: 1, opacity: 1}, {
+          scale: 1.5,
+          opacity: 0,
+          duration: 0.6,
+          ease: "power1.out"
+        });  
+        document.body.classList.add('flash');
+        scatteredImgs.forEach(img => img.classList.add('blackout'));
+        setTimeout(() => {
+          document.body.classList.remove('flash');
+          scatteredImgs.forEach(img => img.classList.remove('blackout'));
+        }, 50);
+    }
+
+    function triggerBop() {      
+      scatteredImgs.forEach(img => {
+        let tl = gsap.timeline();
+        tl.to(img,{scale: 1.3,duration:bopDuration*2,ease: "power1.out"});
+        tl.to(img,{scale: 1,duration:bopDuration*2,ease: "power1.out"});
+      });
+    }
+
+
+    function randomColorGlitch(){
+        // Pick a random index with math.floor
+        let i = Math.floor(Math.random() * scatteredImgs.length);
+        let img = scatteredImgs[i];
+
+        // Add the color-glitch class
+        img.classList.add("color-glitch");
+
+        // Remove it after 5s (or however long you want)
+        setTimeout(() => {
+            img.classList.remove("color-glitch");
+        }, Math.random()*5000);
+
+        // Schedule the next glitch in 1s
+        setTimeout(randomColorGlitch, Math.random()*10000);
+}
+
+    function randomShift(){
+        let i = Math.floor(Math.random() * scatteredImgs.length);
+        let img = scatteredImgs[i];
+        gsap.to(
+            img,{
+            x: -200+Math.random()*400,
+            x: -200+Math.random()*450,
+            rotation: Math.random()*365,
+            duration: 1,
+            yoyo: true,
+            repeat: 1,
+            ease: "power1.inOut",
+        });
+        setTimeout(randomShift,1000);
+    }
+
+    document.getElementById("reveal-btn").addEventListener("click", async () => {
+      document.getElementById("qr-container").style.display = "block";
+      document.getElementById("reveal-btn").style.display = "none";
+      document.querySelector(".pulse-circle").style.animation = "none";
+      document.body
+      scatteredImgs.forEach(img => {
+        img.style.opacity = 1;
+      });
+      await initAudio();
+      isRunning = true;
+      nextMeasureStart = audioContext.currentTime + 0.1; // schedule first measure slightly in the future
+      scheduler();
+      startHorn();
+      randomColorGlitch();
+      randomShift();
+    });
+  </script>
+</body>
+</html>
