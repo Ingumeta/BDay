@@ -113,6 +113,15 @@
       background-color: white !important;
     }
 
+    .flash-skull {
+      background-color: white !important;
+      /* Use your skull image */
+      background-image: url('skull2.png');
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: cover;
+    }
+
     .blackout {
       filter: brightness(0);
     }
@@ -394,10 +403,26 @@
           duration: 0.6,
           ease: "power1.out"
         });  
-        document.body.classList.add('flash');
+        // document.body.classList.add('flash');
+        // scatteredImgs.forEach(img => img.classList.add('blackout'));
+        // setTimeout(() => {
+        //   document.body.classList.remove('flash');
+        //   scatteredImgs.forEach(img => img.classList.remove('blackout'));
+        // }, 50);
+
+        const useSkull = Math.random() < 1; // 30% chance. Tweak as you like
+
+        if (useSkull) {
+          document.body.classList.add('flash-skull');
+        } else {
+          document.body.classList.add('flash');
+        }
+
         scatteredImgs.forEach(img => img.classList.add('blackout'));
+
         setTimeout(() => {
-          document.body.classList.remove('flash');
+          // Remove both classes to revert
+          document.body.classList.remove('flash', 'flash-skull');
           scatteredImgs.forEach(img => img.classList.remove('blackout'));
         }, 50);
     }
