@@ -6,6 +6,8 @@
   <title>Access Code</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="three.r134.min.js"></script>
+<script src="vanta.fog.min.js"></script>
   <style>
     body {
       margin: 0;
@@ -72,6 +74,29 @@
       z-index: 600;
     }
 
+    #fog-layer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none; /* So you can click through it */
+      z-index: 999999; /* On top of almost everything */
+
+      /* Fog background */
+      /* background: url('fog.png') repeat; */
+      /*background-size: contain; /* or cover, or a px value, depending on your image */
+      
+      /* Overall visibility of the fog (0 -> invisible, 1 -> fully opaque) */
+      opacity: 0.4;
+
+      /* Optional filter to tweak color, etc. */
+      /* filter: grayscale(60%); */
+
+      /* Animate the background for drifting effect */
+      /* animation: driftFog 30s linear infinite; */
+    }
+
     .floating-img {
       position: absolute;
       pointer-events: auto;
@@ -96,6 +121,7 @@
         filter: hue-rotate(180deg);
     }
 
+
   </style>
 </head>
 <body>
@@ -104,6 +130,7 @@
   <div id="qr-container">
     <img id="qr-code" src="qr.png" alt="QR Code" />
   </div>
+  <div id="fog-layer"></div>
 
   <script>
     // Each entry is a beat offset within the measure.
@@ -291,7 +318,7 @@
     }
 
     const scatteredImgs = [];
-    const imgCount = 100;
+    const imgCount = 40;
     const imgSrcA = 'maria1.png';
     const imgSrcB = 'je.png';
 
@@ -355,7 +382,7 @@
       // We'll shoot out to some length, then fade away
       tl.fromTo(laser, 
         { height: 0, opacity: 0.9 }, 
-        { height: 500, duration: 0.07, ease: 'power2.out' } // a quick beam up
+        { height: 3000, duration: 0.07, ease: 'power2.out' } // a quick beam up
       )
       .to(laser, { opacity: 0, duration: 0.1, ease: 'power2.in' });
     }
@@ -431,7 +458,21 @@
       scheduler();
       startHorn();
       randomColorGlitch();
-      randomShift();
+      // randomShift();
+      VANTA.FOG({
+        el: document.getElementById("fog-layer"),
+        mouseControls: true,
+        touchControls: true,
+        gyroControls: false,
+        minHeight: 200.00,
+        minWidth: 200.00,
+        highlightColor: 0xff00d1,
+        midtoneColor: 0x7d128c,
+        lowlightColor: 0x424250,
+        baseColor: 0xffc3,
+        blurFactor: 0.55,
+        speed: 3.70
+      })
     });
   </script>
 </body>
