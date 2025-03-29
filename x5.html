@@ -53,8 +53,8 @@
 
     #reveal-btn {
       background: none;
-      border: 2px solid magenta;
-      color: magenta;
+      border: 2px solid rgb(255, 255, 255);
+      color: rgb(255, 255, 255);
       padding: 1em 2em;
       font-size: 1.2em;
       cursor: pointer;
@@ -225,10 +225,25 @@
         filter: hue-rotate(180deg);
     }
 
+    #start-message {
+      position: fixed;
+      top: 30%;
+      width: 100%;
+      text-align: center;
+      color: white;
+      font-size: 2vh;   /* responsive text size */
+      z-index: 9998;    /* just below your button's z-index */
+      pointer-events: none; /* so clicks pass through (optional) */
+    }
+
+
 
   </style>
 </head>
 <body>
+  <div id="start-message">
+    <h2>↑ volume ↑</h2>
+  </div>
 
   <div class="pulse-circle"></div>
   <button id="reveal-btn">Reveal Access Code</button>
@@ -452,7 +467,7 @@
       img.src = imgSrcA;//i<imgCount/6?imgSrcB:imgSrcA;
       img.classList.add('floating-img');
 
-      const size = 10+Math.random() * 20;
+      const size = 20+Math.random() * 30;
       img.style.width = `${size}vmin`;
       img.style.height = 'auto';
       img.style.left = `${Math.random() * 100}%`;
@@ -591,6 +606,7 @@
       document.getElementById("qr-container").style.display = "block";
       document.getElementById("reveal-btn").style.display = "none";
       document.querySelector(".pulse-circle").style.animation = "none";
+      document.getElementById("start-message").style.display = "none";
       document.body
       images.forEach(img => {
         img.style.opacity = 1;
